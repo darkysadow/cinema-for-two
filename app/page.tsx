@@ -1,58 +1,79 @@
-import { DeployButton } from "@/components/deploy-button";
-import { EnvVarWarning } from "@/components/env-var-warning";
-import { AuthButton } from "@/components/auth-button";
-import { Hero } from "@/components/hero";
-import { ThemeSwitcher } from "@/components/theme-switcher";
-import { ConnectSupabaseSteps } from "@/components/tutorial/connect-supabase-steps";
-import { SignUpUserSteps } from "@/components/tutorial/sign-up-user-steps";
-import { hasEnvVars } from "@/lib/utils";
-import Link from "next/link";
 import { Suspense } from "react";
+import Link from "next/link";
+import { connection } from "next/server";
+import { Search } from "lucide-react";
+import { MoviePoster } from "@/components/movie-poster";
+import { EmptyState, ErrorState, LoadingState } from "@/components/page-state";
+import { catalogMovies } from "@/lib/tmdb";
 
-export default function Home() {
+type CatalogProps = { searchParams: Promise<{ q?: string | string[] }> };
+
+export default function Page({ searchParams }: CatalogProps) {
   return (
-    <main className="min-h-screen flex flex-col items-center">
-      <div className="flex-1 w-full flex flex-col gap-20 items-center">
-        <nav className="w-full flex justify-center border-b border-b-foreground/10 h-16">
-          <div className="w-full max-w-5xl flex justify-between items-center p-3 px-5 text-sm">
-            <div className="flex gap-5 items-center font-semibold">
-              <Link href={"/"}>Next.js Supabase Starter</Link>
-              <div className="flex items-center gap-2">
-                <DeployButton />
-              </div>
-            </div>
-            {!hasEnvVars ? (
-              <EnvVarWarning />
-            ) : (
-              <Suspense>
-                <AuthButton />
-              </Suspense>
-            )}
-          </div>
-        </nav>
-        <div className="flex-1 flex flex-col gap-20 max-w-5xl p-5">
-          <Hero />
-          <main className="flex-1 flex flex-col gap-6 px-4">
-            <h2 className="font-medium text-xl mb-4">Next steps</h2>
-            {hasEnvVars ? <SignUpUserSteps /> : <ConnectSupabaseSteps />}
-          </main>
-        </div>
-
-        <footer className="w-full flex items-center justify-center border-t mx-auto text-center text-xs gap-8 py-16">
-          <p>
-            Powered by{" "}
-            <a
-              href="https://supabase.com/?utm_source=create-next-app&utm_medium=template&utm_term=nextjs"
-              target="_blank"
-              className="font-bold hover:underline"
-              rel="noreferrer"
-            >
-              Supabase
-            </a>
-          </p>
-          <ThemeSwitcher />
-        </footer>
+    <>
+      <div className="page-intro">
+        <h1>Discover movies</h1>
+        <p>Search for a title or see what’s popular.</p>
       </div>
-    </main>
+      <Suspense fallback={<LoadingState label="Loading catalog…" />}>
+        <Catalog searchParams={searchParams} />
+      </Suspense>
+    </>
+  );
+}
+
+async function Catalog({ searchParams }: CatalogProps) {
+  const { q } = await searchParams;
+  const query = (Array.isArray(q) ? q[0] : q)?.trim() ?? "";
+  return (
+    <>
+      <form action="/" className="search-form" role="search" key={query}>
+        <label htmlFor="search-movies" className="sr-only">Movie title</label>
+        <div className="search-input">
+          <Search size={19} aria-hidden="true" />
+          <input id="search-movies" className="input" type="search" name="q"
+            placeholder="Search by title" defaultValue={query} />
+        </div>
+        <button className="button" type="submit">Search</button>
+      </form>
+      <section className="catalog" aria-labelledby="catalog-heading">
+        <div className="section-heading">
+          <h2 id="catalog-heading">{query ? `Results for “${query}”` : "Popular movies"}</h2>
+          {query && <Link href="/" className="text-link">Clear search</Link>}
+        </div>
+        <Suspense key={query} fallback={<LoadingState label="Loading movies…" />}>
+          <Results query={query} />
+        </Suspense>
+      </section>
+    </>
+  );
+}
+
+async function Results({ query }: { query: string }) {
+  await connection();
+  const result = await catalogMovies(query);
+  if (result.kind !== "ok") {
+    return <ErrorState title="Movies couldn’t load" description="Try fetching movies from TMDB again." />;
+  }
+  if (!result.value.length) {
+    return query
+      ? <EmptyState title="No matching movies" description="Check the title or try a different search." />
+      : <EmptyState title="No popular movies right now" description="TMDB returned an empty popular list." />;
+  }
+
+  return (
+    <ul className="movie-grid">
+      {result.value.map((movie) => (
+        <li key={movie.id}>
+          <Link href={`/movies/${movie.id}`} className="movie-card" prefetch={false}>
+            <MoviePoster path={movie.posterPath} title={movie.title} />
+            <span className="movie-card-info">
+              <strong>{movie.title}</strong>
+              <span>{movie.year ?? "Year unavailable"}</span>
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
