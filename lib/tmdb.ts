@@ -1,5 +1,6 @@
 import "server-only";
 import { normalizeMovie, type Movie } from "./movies";
+import { createCatalogReader } from "./catalog-tmdb";
 
 type Result<T> = { kind: "ok"; value: T } | { kind: "unavailable" };
 type MovieResult = Result<Movie> | { kind: "not-found" };
@@ -22,24 +23,10 @@ async function readTmdb(path: string): Promise<Result<unknown> | { kind: "not-fo
   }
 }
 
-export async function catalogMovies(query: string): Promise<Result<Movie[]>> {
-  const path = query
-    ? `/search/movie?${new URLSearchParams({ query, include_adult: "false", page: "1" })}`
-    : "/movie/popular?page=1";
+export const catalogReader = createCatalogReader(async path => {
   const result = await readTmdb(path);
-  if (result.kind !== "ok") return { kind: "unavailable" };
-  const body = result.value;
-  if (typeof body !== "object" || body === null || !("results" in body) || !Array.isArray(body.results)) {
-    return { kind: "unavailable" };
-  }
-  const movies = new Map<number, Movie>();
-  for (const row of body.results) {
-    const movie = normalizeMovie(row);
-    if (movie && !movies.has(movie.id)) movies.set(movie.id, movie);
-  }
-  if (body.results.length && !movies.size) return { kind: "unavailable" };
-  return { kind: "ok", value: [...movies.values()] };
-}
+  return result.kind === "ok" ? result.value : null;
+});
 
 export async function movieDetails(id: number): Promise<MovieResult> {
   const result = await readTmdb(`/movie/${id}`);
