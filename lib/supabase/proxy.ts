@@ -1,7 +1,8 @@
 import { createServerClient, type SetAllCookies } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { hasEnvVars } from "../utils";
-import { signInPath } from "../auth-return";
+import { signInPath, watchlistPath } from "../auth-return";
+import { sessionIdFromPath, sessionPath } from "../cinema";
 
 export async function updateSession(request: NextRequest) {
   // Pages and actions enforce access independently of the cookie refresh proxy.
@@ -48,10 +49,12 @@ export async function updateSession(request: NextRequest) {
   } catch {
     // Public pages remain available during an Auth outage.
   }
-  const redirectToSignIn = request.method === "GET" &&
-    request.nextUrl.pathname === "/watchlist" && !claims && needsSignIn;
+  const path = request.nextUrl.pathname;
+  const sessionId = sessionIdFromPath(path);
+  const protectedPath = path === watchlistPath ? watchlistPath : sessionId ? sessionPath(sessionId) : null;
+  const redirectToSignIn = request.method === "GET" && protectedPath && !claims && needsSignIn;
   const response = redirectToSignIn
-    ? NextResponse.redirect(new URL(signInPath("/watchlist"), request.url))
+    ? NextResponse.redirect(new URL(signInPath(protectedPath), request.url))
     : NextResponse.next({ request });
   for (const { name, value, options } of pendingCookies) {
     response.cookies.set(name, value, options);

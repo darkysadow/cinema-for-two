@@ -13,7 +13,7 @@ export default function Page({ searchParams }: LoginProps) {
     <div className="account-panel">
       <div className="page-intro">
         <h1>Sign in</h1>
-        <p>Use your account to save movies to your private Watchlist.</p>
+        <p>Sign in to access your Watchlist and Cinema for Two sessions.</p>
       </div>
       <Suspense fallback={<LoadingState label="Loading sign-in…" />}>
         <Login searchParams={searchParams} />

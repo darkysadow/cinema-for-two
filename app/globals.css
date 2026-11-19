@@ -103,6 +103,21 @@ body {
 .saved-movie-link .poster-fallback span { display: none; }
 .saved-movie-link .poster-fallback svg { width: 1.1rem; }
 
+.cinema-section { display: grid; gap: 1rem; min-width: 0; }
+.cinema-intro, .cinema-form, .cinema-field { display: grid; gap: .55rem; }
+.cinema-intro h2, .cinema-heading, .cinema-section legend { font-size: 1.2rem; font-weight: 750; }
+.cinema-section legend { margin-bottom: .55rem; }
+.cinema-intro p, .cinema-muted { color: hsl(var(--muted-foreground)); }
+.cinema-field { width: 100%; max-width: 24rem; font-size: .9rem; font-weight: 650; }
+.cinema-buttons { display: flex; flex-wrap: wrap; gap: .6rem; }
+.cinema-pick { display: grid; place-items: center; width: 2.75rem; min-height: 2.75rem; flex: none; cursor: pointer; }
+.cinema-choice { display: flex; gap: .45rem; align-items: center; flex: 1; min-width: 0; }
+.cinema-pick input { width: 1.25rem; height: 1.25rem; flex: none; accent-color: hsl(var(--primary)); }
+.cinema-movie { display: grid; grid-template-columns: 3rem minmax(0, 1fr); align-items: center; flex: 1; min-width: 0; }
+.cinema-movie .movie-poster { border-radius: .35rem; }
+.cinema-movie .poster-fallback span { display: none; }
+.cinema-movie .poster-fallback svg { width: 1.1rem; }
+
 .account-panel { width: min(100%, 26rem); margin-inline: auto; }
 .account-form, .account-form label { display: grid; gap: .8rem; }
 .account-form label { gap: .3rem; font-size: .9rem; font-weight: 650; }

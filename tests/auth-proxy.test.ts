@@ -77,3 +77,15 @@ test("a cleared auth cookie and Supabase cache headers reach the Watchlist redir
   assert.equal(response.cookies.get(cookieName)?.maxAge, 0);
   assertAuthCacheHeaders(response);
 });
+
+test("a signed-out session visit retains the UUID as its sign-in destination", async (t) => {
+  mockAuth(t, {});
+  const updateSession = await proxy();
+  const path = "/sessions/aaaaaaaa-bbbb-4ccc-8ddd-eeeeeeeeeeee";
+  const response = await updateSession(expiredRequest(path + "?next=//external.example"));
+  const location = new URL(response.headers.get("location")!);
+  assert.equal(response.status, 307);
+  assert.equal(location.pathname, "/auth/login");
+  assert.equal(location.searchParams.get("next"), path);
+  assertAuthCacheHeaders(response);
+});
