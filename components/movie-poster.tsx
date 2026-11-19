@@ -1,7 +1,7 @@
 "use client";
 
 import { Film } from "lucide-react";
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { posterUrl } from "@/lib/movies";
 
 export function MoviePoster({
@@ -17,11 +17,16 @@ export function MoviePoster({
 }) {
   const src = posterUrl(path, size);
   const [failedSource, setFailedSource] = useState<string | null>(null);
+  const checkCompletedImage = useCallback((image: HTMLImageElement | null) => {
+    // A server-rendered image can fail before hydration attaches onError.
+    if (image?.complete && image.naturalWidth === 0) setFailedSource(src);
+  }, [src]);
   return (
     <div className="movie-poster">
       {src && failedSource !== src ? (
         /* eslint-disable-next-line @next/next/no-img-element -- TMDB's image CDN provides sized posters. */
         <img
+          ref={checkCompletedImage}
           src={src}
           alt={prominent ? `Poster for ${title}` : ""}
           width={342}
