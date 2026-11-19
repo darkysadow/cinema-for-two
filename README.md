@@ -51,6 +51,16 @@ With approval for an isolated Supabase environment, use the publishable key and 
 
 For browser checks, sign in as the host, save two or more movies, create a session, and copy its URL. Verify sign-in and return in a separate signed-out session, then repeat with a nonmember. Remove a shortlisted movie from the host’s Watchlist and check that it remains selectable in the session. With one vote in, inspect the waiting state and Refresh, including whether Refresh preserves the other participant’s draft. Exercise overlapping, disjoint, and intentional empty votes. Check results after a full reload and sign-out access at 360px and 390px. Browser and hosted checks remain pending.
 
+## Run and verify M2.5 catalog discovery
+
+Use the existing local setup and server-side `TMDB_READ_ACCESS_TOKEN`. M2.5 requires no new dependencies, environment variables, or database setup.
+
+- Browse defaults to **All genres** and **Popular**. Choose one genre and sort by Popular, **Top rated** (at least 100 TMDB votes), or **Newest** (primary release date through today in server UTC). Changing either control starts at page 1. For example, `/?genre=35&sort=rating&page=1` opens Comedy sorted by Top rated.
+- Search uses TMDB title matching at URLs such as `/?q=Inception&page=1`. Each submission starts at page 1 and clears Browse filters. A blank search, **Back to Browse**, or **Reset filters** opens default Browse.
+- **Load more** adds the next page to the current results, up to five pages. A link ending in `page=3` opens pages 1 through 3, subject to availability. Reload and Back/Forward restore the selected mode and loaded range. TMDB results can change between visits. If a later page fails, the existing results stay visible and **Retry** requests the failed page.
+
+`npm run lint`, `npm run typecheck`, and `npm test` passed during M2.5 implementation. The default Turbopack production build encountered a port binding restriction in the workspace. `npm run build -- --webpack` completed successfully. The final suite passed 33 tests, and headless Playwright MCP checks passed at 360px and 390px after two catalog navigation defects were reported and fixed. See [M2.5 verification](docs/M25_VERIFICATION.md) for separate live TMDB, local fixture/browser, review evidence, and retained verification limits.
+
 ## Diagnose Watchlist creation through a development tunnel
 
 If checked movies still show a zero selection count, first check whether React has hydrated. The controls remain disabled with explicit loading feedback until hydration. The visible checkboxes stay outside the creation and remove forms. The creation form sends hidden movie IDs from the same selection state as the counter, so a rejected submission can preserve the shortlist for retry.
