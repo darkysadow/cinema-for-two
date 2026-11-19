@@ -6,8 +6,8 @@ begin;
 
 do $$
 declare
-  alex_id uuid := '440935f6-7160-4159-b886-575769a40eb3'::uuid; -- Placeholder 1: alex
-  partner_id uuid := 'e2d07b88-d835-4b15-a688-d825dc11b33c'::uuid; -- Placeholder 2: partner
+  alex_id uuid := 'REPLACE_WITH_ALEX_AUTH_UUID'::uuid; -- Placeholder 1: alex
+  partner_id uuid := 'REPLACE_WITH_PARTNER_AUTH_UUID'::uuid; -- Placeholder 2: partner
 begin
   if alex_id = partner_id then
     raise exception 'Provide two distinct existing Auth user UUIDs';

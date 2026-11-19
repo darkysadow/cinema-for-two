@@ -1,38 +1,39 @@
 # Cinema for Two
 
-Cinema for Two is a mobile movie catalog with a private Watchlist and sessions for finding a movie two people want to watch. TMDB supplies the movie data and ratings. See [PROJECT_SPEC.md](PROJECT_SPEC.md) for the acceptance criteria.
+A mobile movie-discovery app recreating the [IMDb](https://www.imdb.com/) discovery → details → Watchlist workflow. IMDb is the product reference, not an affiliate or data provider. Movie data and explicitly labeled ratings come from TMDB. The single added product feature, **Cinema for Two**, lets two assigned users privately vote on 2–5 movies from the host’s Watchlist, then see their shared choices.
 
-## Run M1 locally
+Five page types: catalog `/`, details `/movies/[movieId]`, sign-in `/auth/login`, private `/watchlist`, and participant-only `/sessions/[sessionId]`. Scope and acceptance criteria: [PROJECT_SPEC.md](PROJECT_SPEC.md).
 
-Use Node.js 22 and npm. Run `npm ci`, then copy `.env.example` to `.env.local` and configure:
+## Local setup
 
-| Variable | Value |
+Use **Node.js 22.x and npm** (CI uses Node 22). Locked Supabase JS requires Node ≥22; Next requires ≥20.9. M3 checks ran on Node 23.8.0/npm 10.9.2, so a clean Node 22 install/build remains a handoff check. `package.json` has no `engines`/`packageManager` pin; use the committed npm lockfile, not dependency updates. Locked versions include Next 16.4.6, React 19.3.1, Supabase JS 2.119.1 and SSR 0.12.7.
+
+```sh
+npm ci
+cp .env.example .env.local
+# Fill .env.local privately, then:
+npm run dev
+```
+
+Open `http://localhost:3000`. Never submit `.env.local`.
+
+| Variable | Placeholder / intended exposure |
 | --- | --- |
-| `TMDB_READ_ACCESS_TOKEN` | TMDB API read access token. The app uses it only on the server. |
-| `NEXT_PUBLIC_SUPABASE_URL` | URL of the Supabase project for this environment. |
-| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | Publishable or legacy anon key from the same project. |
+| `NEXT_PUBLIC_SUPABASE_URL` | `https://your-project.supabase.co`; public project URL, browser and server. |
+| `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` | `your-publishable-or-anon-key`; public publishable/legacy anon key, browser and server. RLS and user sessions enforce access. |
+| `TMDB_READ_ACCESS_TOKEN` | `your-tmdb-read-access-token`; secret, server only. Never prefix with `NEXT_PUBLIC_`. |
+| `DEV_TUNNEL_HOST` (optional) | `your-current-host.ngrok-free.dev`; development only, one exact hostname without scheme, port, path or wildcard. Restart dev after changing it. Omit in production. |
 
-Use a Supabase project with email/password sign-in enabled and public registration disabled. Through the project’s Auth admin interface, create and confirm two distinct demo email/password accounts. Keep their credentials private. The app uses the publishable key and signed-in user’s session for Watchlist operations. Follow [Set up M2](#set-up-m2) to assign the usernames for invitations.
+No Supabase service-role/secret/admin key is required by the application. Administrator database access is needed only for owner-run setup, never as a deployment variable.
 
-Apply [the Watchlist migration](supabase/migrations/20261118000100_create_watchlist.sql) to the chosen project before testing saves. The migration creates one private table with owner-based row-level security and a unique owner/movie key. Hosted settings and migrations were left untouched. The project owner should approve and apply the migration through their established workflow. Start `npm run dev` and open `http://localhost:3000`.
+## Fresh Supabase setup
 
-## Verify M1
+**Do not reapply these migrations to an already configured project.** First inspect the existing migration history, objects, policies and account mappings. These are fresh-setup instructions; no hosted setup was performed during M3 preparation.
 
-Run `npm run lint`, `npm run typecheck`, `npm test`, and `npm run build`. The tests cover TMDB normalization, the local sign-in return-path allowlist, and forwarding Supabase auth cookies with cache-prevention headers on both continuing responses and redirects. The same four gates are defined in GitHub Actions.
-
-1. At 360px and 390px, open the catalog signed out. Check popular titles, title search, whitespace returning to popular, and a no-match result. Open details and verify the labeled TMDB rating, overview, and poster or fallback. Confirm an invalid movie ID shows not-found feedback. Simulate an unavailable TMDB response to exercise retry separately from an empty list.
-2. Open a movie and choose **Sign in to save**. Check the invalid-password error, then sign in with demo account A and verify the return to that movie. Save it, refresh, sign out, and sign back in. The item should still be present once. Open it from the Watchlist and remove it. Verify the empty state and that signing out blocks private data and leaves the catalog and details available.
-3. Use separate browser sessions for demo accounts A and B with distinct test movies. Each Watchlist should show only the signed-in account’s movie. Verify a save action with extra owner or snapshot fields still uses the authenticated identity and TMDB data. For direct data checks, use each demo user’s ordinary Supabase session and the project publishable key. Check own list, read, insert, duplicate insert, and delete as controls. Check that the other owner’s rows cannot be listed or read, that inserting for the other owner fails, that updating or transferring ownership fails, and that deleting the other owner’s movie affects zero rows. Verify the rightful owner’s record afterward. An anonymous client should be unable to read or write Watchlist records. Use disposable demo rows throughout.
-
-Local verification passed lint, typecheck, tests, and the default production build with `npm run build`. Production HTTP checks used mocked TMDB responses to verify catalog, search, details, retry responses, login targets, and the signed-out Watchlist redirect. Live TMDB and the interactive mobile flow were not exercised.
-
-The SQL policies and grants were exercised in isolated PostgreSQL 16 against test `authenticated` and `anon` roles and a fixture `auth.uid()`. Own operations and duplicate inserts succeeded, and foreign or anonymous operations did not modify the other owner’s rows. Live sign-in and Watchlist isolation still need verification against the configured Supabase project. The dev-only invalid movie ID issue remains unresolved.
-
-## Set up M2
-
-The project owner applies [the Cinema for Two migration](supabase/migrations/20261118000200_create_cinema_sessions.sql) after the Watchlist migration, using the same database owner. The three database functions run as that owner. The creation function explicitly filters Watchlist rows to the caller’s `auth.uid()`, and the read and vote functions require that actor to belong to the session. The owner needs access to create the M2 objects and reference Auth user IDs. Keep object ownership with the controlled migration role. The app uses the publishable key with ordinary user sessions.
-
-From Supabase Auth’s admin interface, identify the existing Auth UUIDs for `alex` and `partner`. Using an administrator database connection configured privately with libpq, run this from the repository root. Substitute the actual UUIDs and your own database connection service name.
+1. In a new project, enable email/password Auth and disable public registration. Privately create and confirm two distinct demo accounts in Auth administration.
+2. As the controlled database migration owner, apply once, in order: [Watchlist](supabase/migrations/20261118000100_create_watchlist.sql), then [Cinema sessions](supabase/migrations/20261118000200_create_cinema_sessions.sql). Keep ownership with that role; the M2 functions run as owner and enforce actor/membership explicitly. Use your established migration workflow; provisioning profiles is a separate step.
+3. Obtain the two existing Auth UUIDs privately. Assign one account username **`alex`** and the other **`partner`**. Sign-in uses email/password; invitations use username. Emails, passwords and private access details are shared separately, never in this repository.
+4. With an administrator connection configured privately through libpq, run:
 
 ```sh
 psql "service=cinema_admin" \
@@ -41,42 +42,29 @@ psql "service=cinema_admin" \
   -f supabase/provision-cinema-profiles.sql
 ```
 
-The script uses the existing account IDs and assigns the two usernames in a transaction. An identical rerun succeeds and a conflicting mapping fails without changing existing profiles. Keep actual account details and credentials out of tracked files.
+Alternatively, privately replace both marked UUID placeholders in [the SQL Editor template](supabase/provision-cinema-profiles-sql-editor.sql), then execute the whole transaction in Supabase SQL Editor. Do not save real IDs back to the template. Profile provisioning permits an identical rerun and rejects conflicting mappings; that does **not** make the migrations safe to rerun. Verify both accounts and username mappings against the intended project before a demo. Read-only M3 Auth/PostgREST checks confirmed the privately supplied **Person 1 → `partner`**, **Person 2 → `alex`** mapping; emails/passwords remain separate.
 
-## Verify M2
-
-Run the existing lint, typecheck, unit tests, and production build. To test the migration and database rules, run `bash tests/cinema-db.sh` with local PostgreSQL server tools available. It creates a disposable local cluster over a private Unix socket, uses fixture identities and ordinary database roles, and cleans up on exit. It covers grants and RLS, shortlist creation and rollback, fixed candidate order, own ballot visibility, result gating, invalid or repeated votes, concurrent submissions, no-match outcomes, and simulated nonmember access. This check does not exercise Supabase Auth, PostgREST, or browser behavior.
-
-With approval for an isolated Supabase environment, use the publishable key and separate ordinary sessions for the host, invitee, a test-only nonmember, and anonymous requests. Check direct table reads, relationship reads, and RPCs before and after voting. Verify that anonymous users and nonmembers cannot read session data or submit, and that each participant can read at most their own raw ballot. Forbidden writes must not change any rows.
-
-For browser checks, sign in as the host, save two or more movies, create a session, and copy its URL. Verify sign-in and return in a separate signed-out session, then repeat with a nonmember. Remove a shortlisted movie from the host’s Watchlist and check that it remains selectable in the session. With one vote in, inspect the waiting state and Refresh, including whether Refresh preserves the other participant’s draft. Exercise overlapping, disjoint, and intentional empty votes. Check results after a full reload and sign-out access at 360px and 390px. Browser and hosted checks remain pending.
-
-## Run and verify M2.5 catalog discovery
-
-Use the existing local setup and server-side `TMDB_READ_ACCESS_TOKEN`. M2.5 requires no new dependencies, environment variables, or database setup.
-
-- Browse defaults to **All genres** and **Popular**. Choose one genre and sort by Popular, **Top rated** (at least 100 TMDB votes), or **Newest** (primary release date through today in server UTC). Changing either control starts at page 1. For example, `/?genre=35&sort=rating&page=1` opens Comedy sorted by Top rated.
-- Search uses TMDB title matching at URLs such as `/?q=Inception&page=1`. Each submission starts at page 1 and clears Browse filters. A blank search, **Back to Browse**, or **Reset filters** opens default Browse.
-- **Load more** adds the next page to the current results, up to five pages. A link ending in `page=3` opens pages 1 through 3, subject to availability. Reload and Back/Forward restore the selected mode and loaded range. TMDB results can change between visits. If a later page fails, the existing results stay visible and **Retry** requests the failed page.
-
-`npm run lint`, `npm run typecheck`, and `npm test` passed during M2.5 implementation. The default Turbopack production build encountered a port binding restriction in the workspace. `npm run build -- --webpack` completed successfully. The final suite passed 33 tests, and headless Playwright MCP checks passed at 360px and 390px after two catalog navigation defects were reported and fixed. See [M2.5 verification](docs/M25_VERIFICATION.md) for separate live TMDB, local fixture/browser, review evidence, and retained verification limits.
-
-## Diagnose Watchlist creation through a development tunnel
-
-If checked movies still show a zero selection count, first check whether React has hydrated. The controls remain disabled with explicit loading feedback until hydration. The visible checkboxes stay outside the creation and remove forms. The creation form sends hidden movie IDs from the same selection state as the counter, so a rejected submission can preserve the shortlist for retry.
-
-For ngrok development, allow only the exact hostname currently in the browser URL. Stop and restart the dev server with your own hostname in place of this placeholder:
+## Commands and discovery behavior
 
 ```sh
-DEV_TUNNEL_HOST=your-current-host.ngrok-free.dev npm run dev
+npm run lint
+npm run typecheck
+npm test
+bash tests/cinema-db.sh
+npm run build
+# Explicit alternative build:
+npm run build -- --webpack
+npm start
 ```
 
-Alternatively set `DEV_TUNNEL_HOST` in your untracked `.env.local`, then restart. Do not include `https://`, a port, path, wildcard, or multiple hosts. This setting is ignored in production and affects only Next development resources. Server Action origin validation and database access rules are unchanged. Update the value when the tunnel hostname changes.
+The SQL test needs local PostgreSQL server tools (`pg_config`, `initdb`, `pg_ctl`, `psql`) and local Unix-socket permission. It creates and removes a disposable local cluster; it does not connect to Supabase. Do not run it as root. CI runs lint, typecheck, unit/DOM tests and the default build; SQL/browser checks are separate.
 
-The retained incident log showed an HMR origin rejection, and a local test of the installed React decoder showed that an undelivered development debug stream can block payload resolution. This is evidence for a hydration-stall mechanism, not a browser verification of this incident. Signed-out HTTP probes accepted localhost and matching synthetic tunnel headers; mismatched forwarded-host/origin headers were rejected before the action. Those probes did not invoke Supabase RPCs. An action log displaying FormData as `{}` alone does not establish that its fields were empty.
+Browse supports one genre and Popular, Top rated (at least 100 votes), or Newest (primary release date through the server’s current UTC day). Example: `/?genre=35&sort=rating&page=1`. Search, such as `/?q=Inception&page=1`, uses title matching and clears Browse settings. Blank Search, Back to Browse and Reset filters return to All genres/Popular. Load more appends up to five API pages; reload and Back/Forward reconstruct that range. A failed later page preserves existing results and offers Retry for that page. Discovery adds no database setup.
 
-To capture a real attempt, enable Preserve log in DevTools Network, clear it, select three movies, and record the selection count and whether Create is enabled. Check JavaScript resource status/content type and the first hydration/chunk error. Record whether `/_next/hmr` upgrades successfully. If the count stays zero or controls stay loading and there is no `POST /watchlist`, the failure precedes the action and RPC.
+## Verification and limitations
 
-If a POST appears, record its time, status or pending state, Origin, Content-Type, presence of Next-Action, candidateId field count (not the values), response Content-Type, and x-action-redirect. Correlate with the terminal's POST/action timing and any `x-forwarded-host`/`origin` mismatch, `Aborting the action`, or `Invalid Server Actions request` error. A 200 response can contain an inline validation/auth/RPC error; a redirect to `/sessions/...` indicates creation succeeded. The RPC is server-to-server, so it does not appear as a separate browser request. If needed, correlate the request time with Supabase API logs for `POST /rest/v1/rpc/create_cinema_session` and its status/error code. Share no cookies, Authorization values, credentials, raw form bodies, or raw ballots.
+See the concise [verification matrix](docs/VERIFICATION.md) for current outcomes, [M2.5 evidence](docs/M25_VERIFICATION.md) for detailed historical checks, [development report](DEVELOPMENT.md), [Vercel checklist](DEPLOYMENT.md), and [video checklist](DEMO_CHECKLIST.md).
 
-Transport/framework rejections now return inline feedback and settle the form's pending state; successful framework redirects are rethrown. A genuinely unresolved request is not force-timed-out or automatically retried. The pending view provides a full-page reload link; creation may already have completed, so do not assume a connection failure means no session was created.
+M3 is preparation only: public deployment and its authenticated smoke checks, video, actual time entry and submission remain manual. The matrix separates newly authorized local-app/hosted-backend checks from remaining privacy/tampering/nonmember coverage. Fixtures and isolated SQL tests do not establish hosted Auth/PostgREST behavior. The earlier dev-only invalid-ID issue is explicitly tracked in the matrix. Tunnel/hydration diagnosis and verification limits are retained in the development report.
+
+TMDB data/ranking changes between requests; Popular/Top rated can contain numerical inversions despite the requested sort, and the app preserves upstream order. Results stop at five pages. Cinema uses explicit Refresh, immutable submitted ballots and no session history, realtime updates, public registration, recovery or OAuth. Browser evidence is not a screen-reader audit. Tracked browser artifacts/CLI linkage still need owner review before public submission; see the deployment checklist.
